@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Substation Transformer Bushing Maintenance &amp; Megger Simulation</title>
+
+  <!-- Engineering Dashboard Stylesheet -->
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Three.js (r128 UMD) + OrbitControls for local browser compatibility (works via HTTP or file://) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" defer></script>
+
+  <!-- Chart.js (v4 UMD) for Resistance vs. Time and Condition Comparison Graphs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+
+  <!-- Main Application Logic -->
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <!-- Persistent Safety Banner (Mandatory Educational Disclaimer) -->
+  <div class="safety-banner" role="alert">
+    <div class="container safety-banner-inner">
+      <span class="safety-badge">EDUCATIONAL SIMULATION ONLY</span>
+      <p>
+        All readings, voltages, and resistance curves are <strong>synthetic simulated values</strong> for academic learning—not real field measurements.
+        Actual high-voltage testing and substation maintenance must <strong>only</strong> be performed by trained, authorized electrical professionals following approved safety procedures.
+      </p>
+    </div>
+  </div>
+
+  <!-- Top Engineering Dashboard Header -->
+  <header class="app-header">
+    <div class="container header-content">
+      <div class="brand-block">
+        <div class="brand-icon" aria-hidden="true">HV</div>
+        <div>
+          <p class="eyebrow">B.Tech Electrical Engineering Mini Project</p>
+          <h1>Substation Transformer Bushing Maintenance &amp; Insulation Resistance Testing (Megger)</h1>
+        </div>
+      </div>
+
+      <!-- Primary View Navigation -->
+      <nav class="main-nav" aria-label="Dashboard Sections">
+        <button class="nav-btn active" data-tab="simulation" type="button">Simulation</button>
+        <button class="nav-btn" data-tab="results" type="button">Results</button>
+        <button class="nav-btn" data-tab="theory" type="button">Theory</button>
+        <button class="nav-btn" data-tab="verification" type="button">Verification</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container main-content">
+    <!-- =========================================================
+         TAB 1: SIMULATION (3D Model + Virtual Megger + Live Graph + Maintenance)
+         ========================================================= -->
+    <section id="tab-simulation" class="tab-panel active" aria-labelledby="nav-simulation">
+      <div class="sim-top-grid">
+        <!-- LEFT: Interactive 3D Transformer Bushing Model -->
+        <article class="card viewer-card">
+          <div class="card-header">
+            <div>
+              <h2>3D Substation Transformer &amp; Bushing Model</h2>
+              <p class="subtitle">Drag to rotate, scroll to zoom, and click any highlighted component to inspect its role.</p>
+            </div>
+            <div class="viewer-toolbar">
+              <div class="segmented-control" role="group" aria-label="Bushing Insulator Material">
+                <button type="button" class="seg-btn active" data-material="porcelain">Porcelain</button>
+                <button type="button" class="seg-btn" data-material="composite">Composite</button>
+              </div>
+              <button type="button" id="btn-toggle-labels" class="btn btn-secondary btn-sm">Labels: ON</button>
+              <button type="button" id="btn-reset-camera" class="btn btn-secondary btn-sm">Reset View</button>
+            </div>
+          </div>
+
+          <div class="canvas-wrapper" id="three-container">
+            <canvas id="transformer-canvas" aria-label="Interactive 3D Substation Transformer Model"></canvas>
+            <!-- Floating 3D-to-2D projected component labels injected dynamically -->
+            <div id="labels-overlay" class="labels-overlay"></div>
+            <div id="webgl-fallback" class="fallback-notice hidden">
+              <h3>3D Library Unavailable</h3>
+              <p>Three.js could not be loaded (for example, if offline). Check your internet connection or verify CDN scripts, while all calculations, charts, and educational modules remain usable.</p>
+            </div>
+          </div>
+
+          <!-- Clickable Component Inspector Card -->
+          <div class="inspector-box" id="part-inspector">
+            <div class="inspector-head">
+              <span class="pill pill-blue" id="inspector-tag">Selected Component</span>
+              <h3 id="inspector-title">Click a 3D part (HV/LV Bushing, Tank, Conservator, Radiator)</h3>
+            </div>
+            <p id="inspector-desc">
+              Select any component on the 3D transformer model—or choose a bushing from the Megger panel—to explore its structural function, insulation design, and conceptual maintenance considerations.
+            </p>
+          </div>
+        </article>
+
+        <!-- RIGHT: Virtual Megger Instrument & Controls -->
+        <article class="card megger-card">
+          <div class="card-header">
+            <div>
+              <h2>Virtual Megger Testing Console</h2>
+              <p class="subtitle">Conceptual Insulation Resistance (IR) &amp; Dielectric Absorption Simulator</p>
+            </div>
+            <span class="sim-pill">SIMULATED DATA</span>
+          </div>
+
+          <!-- Virtual Instrument LCD Readout -->
+          <div class="megger-screen">
+            <div class="screen-top-row">
+              <span id="megger-status-led" class="status-led idle">READY (VIRTUAL)</span>
+              <span class="screen-label">SIMULATED EDUCATIONAL OUTPUT — NOT FIELD DATA</span>
+            </div>
+            <div class="screen-main-readout">
+              <div>
+                <span class="metric-caption">Simulated Resistance</span>
+                <div class="digital-value" id="readout-resistance">-- M&Omega;</div>
+              </div>
+              <div class="readout-side">
+                <div>
+                  <span class="metric-caption">Ref. Test Voltage</span>
+                  <div class="sub-value" id="readout-voltage">2500 V DC</div>
+                </div>
+                <div>
+                  <span class="metric-caption">Virtual Timer</span>
+                  <div class="sub-value" id="readout-timer">00s / 60s</div>
+                </div>
+              </div>
+            </div>
+            <!-- Progress bar for 60s virtual run -->
+            <div class="progress-track" aria-label="Simulation Progress">
+              <div class="progress-fill" id="sim-progress-bar"></div>
+            </div>
+            <div class="sample-strip">
+              <div><span>15s Sample:</span> <strong id="sample-r15">--</strong></div>
+              <div><span>30s Sample:</span> <strong id="sample-r30">--</strong></div>
+              <div><span>60s Sample:</span> <strong id="sample-r60">--</strong></div>
+              <div><span>R60/R15 Ratio:</span> <strong id="sample-dar">--</strong></div>
+            </div>
+          </div>
+
+          <!-- Interactive Simulation Parameters -->
+          <form class="control-grid" id="sim-controls" onsubmit="return false;">
+            <div class="form-group">
+              <label for="select-bushing">Virtual Bushing</label>
+              <select id="select-bushing">
+                <option value="HV-A">HV-A (132 kV Phase A Bushing)</option>
+                <option value="HV-B">HV-B (132 kV Phase B Bushing)</option>
+                <option value="HV-C">HV-C (132 kV Phase C Bushing)</option>
+                <option value="LV-a">LV-a (11 kV Phase a Bushing)</option>
+                <option value="LV-b">LV-b (11 kV Phase b Bushing)</option>
+                <option value="LV-c">LV-c (11 kV Phase c Bushing)</option>
+                <option value="LV-n">LV-n (11 kV Neutral Bushing)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="select-condition">Simulated Insulation Condition</label>
+              <select id="select-condition">
+                <option value="healthy">Healthy / Dry Insulation</option>
+                <option value="aged">Aged / Thermal Deterioration</option>
+                <option value="contaminated">Surface Contamination / Moisture</option>
+                <option value="faulty">Severe Insulation Fault / Crack</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="select-voltage">Simulated DC Voltage Reference</label>
+              <select id="select-voltage">
+                <option value="500">500 V DC (Low Voltage Ref.)</option>
+                <option value="1000">1000 V DC (LV Bushing Ref.)</option>
+                <option value="2500" selected>2500 V DC (HV Bushing Ref.)</option>
+                <option value="5000">5000 V DC (HV Class Ref.)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="select-speed">Playback Time Scale</label>
+              <select id="select-speed">
+                <option value="1">1x Real-Time (60s)</option>
+                <option value="6" selected>6x Demo Speed (10s)</option>
+              </select>
+            </div>
+
+            <div class="form-group slider-group">
+              <label for="slider-temp">
+                Ambient / Winding Temp: <strong id="val-temp">25 &deg;C</strong>
+              </label>
+              <input type="range" id="slider-temp" min="10" max="60" value="25" step="1" />
+              <small class="hint">Higher temperature increases charge-carrier mobility and lowers IR.</small>
+            </div>
+
+            <div class="form-group slider-group">
+              <label for="slider-humidity">
+                Relative Humidity / Surface Moisture: <strong id="val-humidity">45%</strong>
+              </label>
+              <input type="range" id="slider-humidity" min="20" max="95" value="45" step="1" />
+              <small class="hint">Elevated moisture promotes surface leakage current, lowering IR.</small>
+            </div>
+          </form>
+
+          <!-- Action Buttons -->
+          <div class="action-bar">
+            <button type="button" id="btn-start-sim" class="btn btn-primary">Start Virtual Simulation</button>
+            <button type="button" id="btn-instant-sample" class="btn btn-outline">Generate Instant Sample</button>
+            <button type="button" id="btn-log-result" class="btn btn-secondary" disabled>Save to Results Table</button>
+            <button type="button" id="btn-reset-sim" class="btn btn-danger-outline">Reset</button>
+          </div>
+
+          <!-- Principle of Measurement Brief -->
+          <div class="principle-box">
+            <h3>Principle of Virtual Megger Measurement</h3>
+            <p>
+              In theory, an insulation tester applies a steady DC potential <i>V</i><sub>DC</sub> across the dielectric between a bushing conductor and its grounded flange.
+              By Ohm's law, apparent insulation resistance is <i>R</i>(<i>t</i>) = <i>V</i><sub>DC</sub> / <i>I</i><sub>total</sub>(<i>t</i>), where total current comprises rapidly decaying capacitive charging current, slowly decaying dielectric absorption current, and steady leakage current.
+              As absorption decays over 60 seconds in healthy insulation, apparent resistance rises over time.
+            </p>
+          </div>
+        </article>
+      </div>
+
+      <!-- MIDDLE ROW: Live Graph + Educational Interpretation -->
+      <div class="analysis-grid">
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2>Insulation Resistance vs. Time (Simulated R–t Curve)</h2>
+              <p class="subtitle">Shows how virtual apparent resistance (M&Omega; / G&Omega;) evolves from 0s to 60s.</p>
+            </div>
+            <label class="checkbox-inline">
+              <input type="checkbox" id="chk-baseline" checked />
+              <span>Show Healthy Reference Curve</span>
+            </label>
+          </div>
+          <div class="chart-container">
+            <canvas id="rt-chart"></canvas>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2>Educational Interpretation &amp; Environmental Impact</h2>
+              <p class="subtitle">Real-time conceptual explanation based on active simulation settings</p>
+            </div>
+            <span class="pill" id="interpretation-badge">Pending Run</span>
+          </div>
+          <div id="interpretation-content" class="interpretation-body">
+            <p>
+              Run the virtual simulation or click <strong>Generate Instant Sample</strong> to view an educational interpretation of the simulated insulation resistance trend, temperature sensitivity, and moisture influence.
+            </p>
+          </div>
+          <div class="env-factors-grid">
+            <div class="factor-box">
+              <h4>Condition vs. Resistance</h4>
+              <p>Healthy dry bushings restrict leakage current to micro-amperes or less (G&Omega; range). Contamination, moisture, or cracks create conductive leakage paths, dropping resistance into lower M&Omega; levels.</p>
+            </div>
+            <div class="factor-box">
+              <h4>Temperature &amp; Moisture Effect</h4>
+              <p>Insulation resistance typically halves for roughly every 10&ndash;15 &deg;C rise in temperature. High humidity deposits thin conductive films over shed surfaces, sharply lowering surface resistance.</p>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <!-- BOTTOM ROW: Conceptual Bushing Maintenance Module -->
+      <article class="card maintenance-card">
+        <div class="card-header">
+          <div>
+            <h2>Bushing Maintenance Module (Conceptual Engineering Overview)</h2>
+            <p class="subtitle">Key inspection and asset-management considerations—educational concepts only (no practical field procedures).</p>
+          </div>
+          <span class="pill pill-warning">Conceptual Overview Only</span>
+        </div>
+
+        <div class="maintenance-grid">
+          <div class="maint-item">
+            <h3>1. Visual Inspection Concepts</h3>
+            <p>Routine substation walkdowns conceptually monitor external bushing posture, oil sight-glass visibility, and overall physical integrity from safe, designated observation zones.</p>
+          </div>
+          <div class="maint-item">
+            <h3>2. Surface Contamination</h3>
+            <p>Airborne dust, industrial soot, or coastal salt accumulation on porcelain or composite sheds can absorb moisture and cause surface tracking or flashover risk under high electrical stress.</p>
+          </div>
+          <div class="maint-item">
+            <h3>3. Cracks &amp; Physical Damage</h3>
+            <p>Chipped porcelain sheds, hairline glaze fractures, or torn polymeric weather sheds compromise creepage distance and allow environmental moisture ingress into internal insulation.</p>
+          </div>
+          <div class="maint-item">
+            <h3>4. Oil Leakage Indicators</h3>
+            <p>In oil-impregnated paper (OIP) bushings, darkened stains around mounting flanges, gasket weeping, or abnormal oil-level indicators signal potential seal degradation.</p>
+          </div>
+          <div class="maint-item">
+            <h3>5. Loose or Damaged Fittings</h3>
+            <p>Corroded top terminal clamps, loose hardware, or damaged grounding/test-tap covers can increase contact resistance, cause localized heating, or compromise electrostatic shielding.</p>
+          </div>
+          <div class="maint-item">
+            <h3>6. General Insulation Condition</h3>
+            <p>Long-term thermal cycling, dielectric aging, and moisture absorption gradually reduce insulation resistance and increase dielectric losses over the transformer service life.</p>
+          </div>
+          <div class="maint-item maint-wide">
+            <h3>7. Maintenance Documentation &amp; Trending</h3>
+            <p>Utilities maintain structured equipment logs recording ambient temperature, humidity, visual observations, and historical diagnostic trends. Comparing current readings against baseline commissioning records helps authorized engineers plan preventive interventions safely.</p>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <!-- =========================================================
+         TAB 2: RESULTS (Comparison Chart + Results Table + Observations)
+         ========================================================= -->
+    <section id="tab-results" class="tab-panel" aria-labelledby="nav-results">
+      <div class="results-top-grid">
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2>Comparison Across Simulated Insulation Conditions</h2>
+              <p class="subtitle">Side-by-side 60-second simulated resistance profile at current Temperature (<span id="comp-temp-label">25 &deg;C</span>) &amp; Humidity (<span id="comp-hum-label">45%</span>)</p>
+            </div>
+            <button type="button" id="btn-refresh-comparison" class="btn btn-secondary btn-sm">Sync to Current Env</button>
+          </div>
+          <div class="chart-container">
+            <canvas id="comparison-chart"></canvas>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2>Summary of Observations</h2>
+              <p class="subtitle">Educational synthesis of simulated condition behavior</p>
+            </div>
+            <span class="sim-pill">SIMULATED SUMMARY</span>
+          </div>
+          <div id="observations-summary" class="observations-body">
+            <ul class="clean-list">
+              <li><strong>Healthy Insulation:</strong> Exhibits high G&Omega;-level resistance and a clear rising slope between 15 s and 60 s as capacitive and absorption currents decay.</li>
+              <li><strong>Aged Insulation:</strong> Shows reduced overall resistance due to thermal aging and oxidized oil/paper pathways, with a flatter R–t curve.</li>
+              <li><strong>Contaminated / Moist Surface:</strong> Surface leakage current dominates total current, pulling readings down into the tens or hundreds of M&Omega; and suppressing the R60/R15 ratio.</li>
+              <li><strong>Severe Insulation Fault:</strong> Conductive fault paths cause rapid leakage current, producing persistently low M&Omega; readings with virtually no upward time polarization.</li>
+            </ul>
+            <div class="callout-note">
+              <strong>Educational Note:</strong> Always interpret insulation resistance alongside temperature correction concepts and historical baselines rather than as a single isolated number.
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <article class="card">
+        <div class="card-header">
+          <div>
+            <h2>Simulated Insulation Resistance Results Table</h2>
+            <p class="subtitle">Includes pre-generated sample educational baselines and any runs saved from the Simulation tab (all values are synthetic).</p>
+          </div>
+          <div class="table-actions">
+            <button type="button" id="btn-load-samples" class="btn btn-secondary btn-sm">Restore Sample Rows</button>
+            <button type="button" id="btn-clear-results" class="btn btn-danger-outline btn-sm">Clear User Runs</button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="results-table" id="results-table">
+            <thead>
+              <tr>
+                <th>Run ID</th>
+                <th>Source</th>
+                <th>Bushing</th>
+                <th>Material</th>
+                <th>Simulated Condition</th>
+                <th>Env (Temp / RH)</th>
+                <th>Ref Voltage</th>
+                <th>15s Reading</th>
+                <th>60s Reading</th>
+                <th>R60 / R15</th>
+                <th>Educational Status</th>
+              </tr>
+            </thead>
+            <tbody id="results-tbody">
+              <!-- Populated dynamically by script.js -->
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <!-- =========================================================
+         TAB 3: THEORY (Complete 12-Section Educational Report)
+         ========================================================= -->
+    <section id="tab-theory" class="tab-panel" aria-labelledby="nav-theory">
+      <article class="card report-card">
+        <div class="report-header">
+          <span class="pill pill-blue">Academic Project Report</span>
+          <h2>Substation Transformer Bushing Maintenance and Insulation Resistance Testing (Megger)</h2>
+          <p class="subtitle">Comprehensive B.Tech Mini Project Technical Documentation (Educational &amp; Simulation Framework)</p>
+        </div>
+
+        <div class="report-toc">
+          <strong>Sections:</strong>
+          <a href="#sec-1">1. Introduction</a>
+          <a href="#sec-2">2. Project Objectives</a>
+          <a href="#sec-3">3. Transformer Bushing Construction</a>
+          <a href="#sec-4">4. Working Principle</a>
+          <a href="#sec-5">5. Megger Testing Theory</a>
+          <a href="#sec-6">6. Insulation Resistance</a>
+          <a href="#sec-7">7. Maintenance Concepts</a>
+          <a href="#sec-8">8. Results &amp; Discussion</a>
+          <a href="#sec-9">9. Applications</a>
+          <a href="#sec-10">10. Limitations</a>
+          <a href="#sec-11">11. Conclusion</a>
+          <a href="#sec-12">12. References</a>
+        </div>
+
+        <div class="report-sections">
+          <section id="sec-1">
+            <h3>1. Introduction</h3>
+            <p>
+              Power transformers are critical capital assets in electrical transmission and distribution substations. Among all transformer sub-assemblies, high-voltage (HV) and low-voltage (LV) bushings experience intense combined electrical, thermal, and environmental stress because they carry full load current while insulating energized conductors from the grounded metallic transformer tank.
+              Industry reliability studies attribute a substantial share of unplanned transformer outages to bushing degradation caused by moisture ingress, surface contamination, seal aging, or dielectric breakdown.
+              This project presents a safe, interactive web-based virtual laboratory that visually demonstrates transformer bushing anatomy in 3D and models the conceptual principles of insulation resistance (Megger) evaluation without exposing learners to high-voltage hazards.
+            </p>
+          </section>
+
+          <section id="sec-2">
+            <h3>2. Project Objectives</h3>
+            <ul class="clean-list">
+              <li>Develop an interactive 3D visualization of a substation power transformer showing HV and LV bushings, porcelain vs. composite surfaces, and auxiliary tank assemblies.</li>
+              <li>Simulate the conceptual behavior of an insulation resistance tester (Megger) across varying bushing health states, temperatures, and humidity levels.</li>
+              <li>Demonstrate how capacitive charging, dielectric absorption, and leakage currents shape Resistance-vs-Time curves in M&Omega; and G&Omega; ranges.</li>
+              <li>Present structured, non-procedural maintenance awareness concepts emphasizing condition monitoring and documentation.</li>
+              <li>Provide an all-in-one, browser-accessible educational dashboard suited for B.Tech electrical engineering coursework and demonstrations.</li>
+            </ul>
+          </section>
+
+          <section id="sec-3">
+            <h3>3. Transformer Bushing Construction</h3>
+            <p>
+              A transformer bushing consists of a central current-carrying conductor (copper or aluminum rod/draw-lead) surrounded by an insulating core and enclosed within an external weather-shed shell:
+            </p>
+            <ul class="clean-list">
+              <li><strong>Central Conductor:</strong> Carries load current from the internal transformer winding to external overhead busbars or cables.</li>
+              <li><strong>Internal Core Insulation:</strong> Common industrial technologies include Oil-Impregnated Paper (OIP), Resin-Impregnated Paper (RIP), and Resin-Bonded Paper (RBP). Condenser-type HV bushings embed concentric aluminum foil grading layers to distribute electric field stress uniformly.</li>
+              <li><strong>External Insulating Shell:</strong> Historically made of wet-process <em>glazed porcelain</em> for mechanical rigidity and UV resistance; modern installations also employ <em>composite silicone rubber</em> housings offering superior hydrophobicity and lighter weight.</li>
+              <li><strong>Mounting Flange &amp; Hardware:</strong> A cast-metal flange bolts the bushing to the tank turret at ground potential, accompanied by gaskets, oil-expansion heads/sight glasses (in OIP units), and top terminal clamps.</li>
+            </ul>
+          </section>
+
+          <section id="sec-4">
+            <h3>4. Working Principle</h3>
+            <p>
+              A bushing acts simultaneously as an electrical insulator and a cylindrical capacitor system. Without field grading, the electric field concentrates heavily near the grounded mounting flange and central conductor surface, risking partial discharge or radial breakdown.
+              By introducing concentric conductive grading foils (in condenser bushings), the radial and axial voltage gradients are divided into smaller, roughly equal capacitive steps between the energized conductor and ground. External alternating weather sheds lengthen the creepage path over the outer surface, preventing continuous conductive water films during rain or fog.
+            </p>
+          </section>
+
+          <section id="sec-5">
+            <h3>5. Megger Testing Theory</h3>
+            <p>
+              An Insulation Resistance (IR) tester—commonly referred to by the legacy trade name <em>Megger</em>—evaluates the integrity of electrical insulation by applying a regulated DC test potential <i>V</i><sub>DC</sub> and measuring the resulting small current <i>I</i><sub>total</sub>(<i>t</i>) over time.
+              The total current flowing through and over a bushing consists of three theoretical components:
+            </p>
+            <ol class="clean-list">
+              <li><strong>Capacitive Charging Current (<i>I</i><sub>c</sub>):</strong> Charges the geometric capacitance of the bushing; starts high and decays exponentially within the first few seconds.</li>
+              <li><strong>Dielectric Absorption Current (<i>I</i><sub>a</sub>):</strong> Caused by slow dipole alignment and space-charge polarization inside solid/liquid insulation; decays over tens of seconds to minutes.</li>
+              <li><strong>Steady Conduction / Leakage Current (<i>I</i><sub>l</sub>):</strong> Constant current flowing through bulk insulation defects or moist/contaminated external surfaces; ideally negligible in healthy dry insulation.</li>
+            </ol>
+            <p>
+              Because <i>I</i><sub>c</sub> and <i>I</i><sub>a</sub> decay with time while <i>I</i><sub>l</sub> remains steady, good insulation exhibits a continuously rising apparent resistance <i>R</i>(<i>t</i>) = <i>V</i><sub>DC</sub> / (<i>I</i><sub>c</sub>(<i>t</i>) + <i>I</i><sub>a</sub>(<i>t</i>) + <i>I</i><sub>l</sub>). Comparing readings at 60 seconds and 15 seconds yields a simple dielectric absorption indicator (<i>R</i><sub>60</sub> / <i>R</i><sub>15</sub>).
+            </p>
+          </section>
+
+          <section id="sec-6">
+            <h3>6. Insulation Resistance</h3>
+            <p>
+              Insulation resistance is expressed in Megaohms (M&Omega;) or Gigaohms (G&Omega;). Healthy high-voltage transformer bushings typically display readings in the multi-G&Omega; range under dry, moderate-temperature conditions, whereas degraded or contaminated bushings fall into lower M&Omega; values.
+              Two major environmental variables strongly influence readings:
+            </p>
+            <ul class="clean-list">
+              <li><strong>Temperature:</strong> Insulating materials exhibit a negative temperature coefficient of resistance—higher temperatures mobilize charge carriers and moisture molecules, causing insulation resistance to drop noticeably (often roughly halving per 10&ndash;15 &deg;C rise).</li>
+              <li><strong>Moisture &amp; Surface Contamination:</strong> Water and dissolved ionic pollutants form low-resistance leakage paths across outer sheds or inside compromised paper cores, flattening the R–t curve.</li>
+            </ul>
+          </section>
+
+          <section id="sec-7">
+            <h3>7. Maintenance Concepts</h3>
+            <p>
+              Effective substation asset management relies on periodic non-intrusive visual awareness, environmental monitoring, and longitudinal diagnostic trending rather than reactive failure response.
+              Key conceptual inspection categories include checking for surface pollution deposits, porcelain cracks or composite shed erosion, oil seepage around gaskets, corroded terminal connections, and maintaining accurate historical test logs.
+              <em>Safety Policy:</em> All physical inspection, de-energization, isolation, grounding, and diagnostic testing in real substations must strictly be carried out exclusively by licensed, authorized personnel adhering to institutional lockout/tagout and high-voltage safety standards.
+            </p>
+          </section>
+
+          <section id="sec-8">
+            <h3>8. Results and Discussion</h3>
+            <p>
+              Simulation experiments within this dashboard illustrate clear separation across the four modeled insulation health states.
+              Under baseline conditions (25 &deg;C, 45% RH), the simulated healthy HV bushing reaches the G&Omega; range at 60 s with an absorption ratio above 1.4, demonstrating strong polarization behavior.
+              Conversely, introducing simulated surface contamination and high humidity depresses apparent resistance into lower M&Omega; values and flattens the R–t profile because surface leakage masks dielectric absorption.
+              Raising the virtual temperature slider from 20 &deg;C to 50 &deg;C visually confirms the exponential drop in insulation resistance, reinforcing why temperature awareness is vital in engineering analysis.
+            </p>
+          </section>
+
+          <section id="sec-9">
+            <h3>9. Applications</h3>
+            <ul class="clean-list">
+              <li>Undergraduate electrical engineering lab demonstrations for Power Systems, High Voltage Engineering, and Switchgear &amp; Protection courses.</li>
+              <li>Safe conceptual onboarding tool for engineering trainees before supervised utility training.</li>
+              <li>Interactive classroom aid for visualizing 3D bushing construction and environmental sensitivity of insulation resistance curves.</li>
+            </ul>
+          </section>
+
+          <section id="sec-10">
+            <h3>10. Limitations</h3>
+            <ul class="clean-list">
+              <li>All values are generated by a simplified educational behavioral model rather than finite-element electrostatic or real laboratory measurements.</li>
+              <li>The simulation models insulation resistance concepts only and does not simulate AC power-factor / tan-&delta;, dissolved gas analysis (DGA), or partial discharge diagnostics.</li>
+              <li>Cannot replace certified hands-on training or utility test standards for real field personnel.</li>
+            </ul>
+          </section>
+
+          <section id="sec-11">
+            <h3>11. Conclusion</h3>
+            <p>
+              This project successfully combines 3D computer graphics (Three.js), interactive data visualization (Chart.js), and electrical insulation theory into a cohesive educational dashboard.
+              By connecting bushing geometry, environmental factors, and conceptual Megger R–t curves in a risk-free browser environment, students gain strong intuition about why bushing condition monitoring and accurate maintenance documentation are essential for substation reliability.
+            </p>
+          </section>
+
+          <section id="sec-12">
+            <h3>12. References</h3>
+            <ol class="clean-list">
+              <li>IEEE Std C57.19.00 — <em>IEEE Standard General Requirements and Test Procedure for Power Apparatus Bushings</em> (Conceptual reference).</li>
+              <li>IEEE Std 43 — <em>IEEE Recommended Practice for Testing Insulation Resistance of Electric Machinery</em> (Theory of IR &amp; polarization concepts).</li>
+              <li>IEC 60137 — <em>Insulated Bushings for Alternating Voltages Above 1000 V</em> (Bushing classification concepts).</li>
+              <li>C. L. Wadhwa, <em>High Voltage Engineering</em>, New Age International Publishers.</li>
+              <li>M. S. Naidu &amp; V. Kamaraju, <em>High Voltage Engineering</em>, McGraw Hill Education.</li>
+            </ol>
+          </section>
+        </div>
+      </article>
+    </section>
+
+    <!-- =========================================================
+         TAB 4: VERIFICATION (Self-Test & QA Diagnostics)
+         ========================================================= -->
+    <section id="tab-verification" class="tab-panel" aria-labelledby="nav-verification">
+      <article class="card">
+        <div class="card-header">
+          <div>
+            <h2>Automated Simulation &amp; UI Verification Suite</h2>
+            <p class="subtitle">Validates virtual IR calculations, condition ordering, environmental laws, chart updates, 3D scene objects, and reset behavior.</p>
+          </div>
+          <button type="button" id="btn-run-verification" class="btn btn-primary">Run All Verification Checks</button>
+        </div>
+
+        <div class="verification-summary" id="verification-summary">
+          <div class="v-stat"><span>Total Checks</span><strong id="v-total">0</strong></div>
+          <div class="v-stat v-pass"><span>Passed</span><strong id="v-passed">0</strong></div>
+          <div class="v-stat v-fail"><span>Failed</span><strong id="v-failed">0</strong></div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="results-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Check Name</th>
+                <th>Category</th>
+                <th>Expected Behavior</th>
+                <th>Observed Output</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="verification-tbody">
+              <!-- Populated dynamically by VerificationSuite -->
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <div class="container footer-inner">
+      <p>
+        <strong>Safety Reminder:</strong> Educational software simulation only. Never connect software tools or uncertified equipment to substation hardware. Actual testing and maintenance must only be performed by trained, authorized professionals under approved utility procedures.
+      </p>
+      <p class="footer-meta">B.Tech Mini Project &bull; HTML5 / CSS3 / JS / Three.js / Chart.js</p>
+    </div>
+  </footer>
+</body>
+</html>
